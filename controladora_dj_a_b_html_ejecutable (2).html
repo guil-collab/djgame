@@ -1,0 +1,359 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Controladora DJ A/B — Técnicas aleatorias</title>
+  <style>
+    :root{
+      --bg:#0b0f14;          /* fondo principal */
+      --panel:#121823;       /* paneles */
+      --panel-dark:#0f141d;  
+      --text:#e6eefc;        
+      --muted:#90a4b8;
+      --accentA:#16a34a;     /* verde deck A */
+      --accentB:#2563eb;     /* azul deck B */
+      --warn:#f59e0b;        /* botones de advertencia */
+      --danger:#ef4444;      
+      --shadow: 0 12px 28px rgba(0,0,0,.45), 0 2px 6px rgba(0,0,0,.35);
+    }
+    html,body{height:100%;}
+    body{
+      margin:0; background: radial-gradient(1200px 800px at 50% -20%,#131b27 10%, var(--bg) 60%);
+      color:var(--text); font-family: system-ui, -apple-system, Segoe UI, Roboto, Inter, Ubuntu, Cantarell, Noto Sans, Helvetica, Arial, "Apple Color Emoji","Segoe UI Emoji";
+      display:flex; align-items:center; justify-content:center; padding:24px;
+    }
+    .wrap{width:min(1200px, 100%);} 
+    .header{display:flex; align-items:center; justify-content:space-between; margin-bottom:16px; gap:12px;}
+    .title{font-weight:700; letter-spacing:.3px; font-size: clamp(18px, 2.2vw, 28px);} 
+    .indicators{display:flex; gap:14px; align-items:baseline;}
+    .round{opacity:.9; font-weight:600;}
+    .progress{opacity:.85; font-size:13px; color:var(--muted)}
+    .grid{display:grid; grid-template-columns: 1fr 520px 1fr; gap:16px;}
+
+    .deck{background:linear-gradient(180deg, var(--panel) 0%, var(--panel-dark) 100%); border-radius:18px; box-shadow:var(--shadow); padding:18px; position:relative; overflow:hidden;}
+    .deck:before{content:""; position:absolute; inset:-2px; border-radius:20px; padding:2px; background:linear-gradient(135deg, rgba(255,255,255,.06), rgba(255,255,255,0) 40%, rgba(255,255,255,.05)); -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0); -webkit-mask-composite: xor; mask-composite: exclude;}
+
+    .deck.hilightA{outline:1px solid color-mix(in oklab, var(--accentA), transparent 70%);} 
+    .deck.hilightB{outline:1px solid color-mix(in oklab, var(--accentB), transparent 70%);} 
+
+    .deck-header{display:flex; align-items:center; justify-content:space-between; margin-bottom:12px;}
+    .pill{font-size:12px; text-transform:uppercase; letter-spacing:.08em; padding:6px 10px; border-radius:999px; background:rgba(255,255,255,.06);} 
+    .pill.A{border:1px solid color-mix(in oklab, var(--accentA), transparent 70%); color: color-mix(in oklab, var(--accentA), white 15%);} 
+    .pill.B{border:1px solid color-mix(in oklab, var(--accentB), transparent 70%); color: color-mix(in oklab, var(--accentB), white 15%);} 
+
+    .row{display:grid; grid-template-columns: 1fr auto; gap:10px; align-items:center; margin:10px 0;}
+    label{font-size:12px; color:var(--muted);} 
+    input[type="number"]{width:100%; background:#0c121b; border:1px solid rgba(255,255,255,.08); color:var(--text); padding:10px 12px; border-radius:10px; outline:none; box-shadow: inset 0 1px 0 rgba(255,255,255,.04); appearance: textfield;}
+    input::placeholder{color:#5b6b7f}
+
+    .jog{height: 220px; aspect-ratio:1; border-radius:50%; margin: 10px auto 0; position:relative; display:grid; place-items:center; 
+      background: conic-gradient(from 0deg, rgba(255,255,255,.06), rgba(255,255,255,0) 70%) , radial-gradient(circle at 50% 50%, #0f1724 0, #0c121b 70%, #080c12 100%);
+      box-shadow: inset 0 4px 18px rgba(0,0,0,.6), 0 12px 24px rgba(0,0,0,.45);} 
+    .jog .hub{height: 42%; aspect-ratio:1; border-radius:50%; background: radial-gradient(circle at 35% 35%, rgba(255,255,255,.18), rgba(255,255,255,.02) 55%, transparent 56%), linear-gradient(180deg, #0f1520, #0b1018);
+      box-shadow: inset 0 2px 6px rgba(0,0,0,.7); position:relative;} 
+    .jog .ring{position:absolute; inset:10px; border-radius:50%; border:2px dashed rgba(255,255,255,.15); animation: spin 14s linear infinite;} 
+    .jog.A .ring{border-color: color-mix(in oklab, var(--accentA), white 70%); opacity:.25}
+    .jog.B .ring{border-color: color-mix(in oklab, var(--accentB), white 70%); opacity:.25}
+    @keyframes spin{to{transform: rotate(360deg)}}
+
+    .mixer{display:grid; grid-template-rows: auto auto auto; gap:14px; align-items:stretch; justify-items:stretch;}
+
+    .xfader{background:linear-gradient(180deg, #0f1622, #0b111a); border-radius:16px; padding:16px; box-shadow:var(--shadow); position:relative;}
+    .xf-track{height:8px; background:linear-gradient(90deg, color-mix(in oklab, var(--accentA), transparent 70%), rgba(255,255,255,.08) 50%, color-mix(in oklab, var(--accentB), transparent 70%)); border-radius:999px; position:relative;} 
+    .xf-knob{--pos:0; position:absolute; top:50%; transform: translate(calc(var(--pos) * 1% - 12px), -50%); height:24px; width:24px; border-radius:6px; background:linear-gradient(180deg,#cfd8e3,#8aa0b9); box-shadow: 0 2px 0 rgba(0,0,0,.4), inset 0 1px 0 rgba(255,255,255,.6); transition: transform .35s ease;} 
+    .xf-scale{display:flex; justify-content:space-between; font-size:10px; color:#8aa0b9; margin-top:6px;}
+
+    /* Panel de técnica centrado y grande */
+    .tech{background:linear-gradient(180deg, #0f1622, #0b111a); border-radius:16px; padding:20px; box-shadow:var(--shadow); display:grid; place-items:center; text-align:center;}
+    .tech .badge{display:inline-flex; gap:8px; align-items:center; font-size:12px; letter-spacing:.08em; text-transform:uppercase; background:rgba(255,255,255,.06); border:1px solid rgba(255,255,255,.1); padding:6px 10px; border-radius:999px; margin-bottom:8px;} 
+    .tech .badge.trans{border-color: color-mix(in oklab, var(--accentB), transparent 60%); color: color-mix(in oklab, var(--accentB), white 20%);} 
+    .tech .badge.mix{border-color: color-mix(in oklab, var(--accentA), transparent 60%); color: color-mix(in oklab, var(--accentA), white 20%);} 
+    .tech .main{font-weight:800; letter-spacing:.2px; line-height:1.15; font-size: clamp(20px, 3.6vw, 44px); color:#eaf2ff;}
+    .tech .sub{margin-top:8px; font-size:13px; color:#a8b6c8}
+
+    .vu{background:linear-gradient(180deg, #0f1622, #0b111a); border-radius:16px; padding:14px; box-shadow:var(--shadow);} 
+    .vu-bars{display:grid; grid-template-columns: repeat(12, 1fr); gap:6px; align-items:end; height:82px; margin-top:8px;} 
+    .bar{height:30%; background: linear-gradient(180deg, #9ae6b4, #22c55e 35%, #84cc16 70%, #ef4444 100%); border-radius:3px; filter: saturate(1.1); box-shadow: 0 2px 8px rgba(0,0,0,.35) inset, 0 1px 0 rgba(255,255,255,.25) inset;}
+
+    .controls{display:flex; flex-wrap:wrap; gap:10px; justify-content:flex-end; margin-top:14px;}
+    .btn{appearance:none; border:none; padding:10px 14px; border-radius:12px; font-weight:600; cursor:pointer; letter-spacing:.2px; box-shadow: 0 8px 18px rgba(0,0,0,.35), inset 0 1px 0 rgba(255,255,255,.2);} 
+    .btn-primary{background: linear-gradient(180deg, #3b82f6, #1d4ed8); color:white;} 
+    .btn-ghost{background: rgba(255,255,255,.06); color:var(--text); border:1px solid rgba(255,255,255,.12)} 
+    .btn-warn{background: linear-gradient(180deg, #fbbf24, #f59e0b); color:#1b1302} 
+    .btn:active{transform: translateY(1px)}
+
+    .muted{color:var(--muted); font-size:12px} 
+    .small{font-size:12px}
+
+    @media (max-width: 1080px){ .grid{grid-template-columns: 1fr 1fr;} }
+    @media (max-width: 980px){ .grid{grid-template-columns: 1fr;} }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <div class="header">
+      <div class="title">🎚️ Controladora DJ A/B — Técnicas aleatorias</div>
+      <div class="indicators">
+        <div class="round">Ronda <span id="round">1</span></div>
+        <div class="progress">Progreso: <span id="prog">0</span>/30</div>
+      </div>
+    </div>
+
+    <div class="grid">
+      <!-- Deck A (saliente) -->
+      <section class="deck hilightA" id="deckA">
+        <div class="deck-header">
+          <span class="pill A">Deck A · Saliente</span>
+          <span class="muted" id="deltaReadout">ΔBPM: —</span>
+        </div>
+        <div class="row"><label>BPM A</label><div></div></div>
+        <input id="bpmA" type="number" placeholder="—" readonly>
+        <div class="jog A">
+          <div class="ring"></div>
+          <div class="hub"></div>
+        </div>
+      </section>
+
+      <!-- Mixer central -->
+      <section class="mixer">
+        <div class="xfader">
+          <div class="row" style="margin-top:0"><label>Crossfader (decorativo)</label><div class="small muted">avanza con técnicas realizadas</div></div>
+          <div class="xf-track">
+            <div class="xf-knob" id="xfKnob" style="--pos:0"></div>
+          </div>
+          <div class="xf-scale"><span>A</span><span>50</span><span>B</span></div>
+        </div>
+        <div class="tech">
+          <div class="badge" id="techBadge">—</div>
+          <div class="main" id="techMain">Pulsa «Reiniciar sesión» o completa una ronda para obtener una técnica.</div>
+          <div class="sub" id="techSub">La categoría se mostrará aquí.</div>
+        </div>
+        <div class="vu">
+          <div class="row" style="margin-top:0"><label>VU meter (decorativo)</label><div class="small muted">fluctúa según ΔBPM + jitter</div></div>
+          <div class="vu-bars" id="vuBars"></div>
+          <div class="controls">
+            <button class="btn btn-ghost" id="undoBtn">↶ Deshacer</button>
+            <button class="btn btn-warn" id="resetBtn">⟲ Reiniciar sesión</button>
+            <button class="btn" id="nextBtn">⏭ Pasar al siguiente tema</button>
+            <button class="btn btn-primary" id="commitBtn">✔ Completar ronda (B → A)</button>
+          </div>
+        </div>
+      </section>
+
+      <!-- Deck B (entrante) -->
+      <section class="deck hilightB" id="deckB">
+        <div class="deck-header">
+          <span class="pill B">Deck B · Entrante</span>
+          <span class="small muted">Introduce BPM</span>
+        </div>
+        <div class="row"><label>BPM B</label><div></div></div>
+        <input id="bpmB" type="number" placeholder="Ej: 128" min="40" max="220" step="0.01">
+        <div class="jog B">
+          <div class="ring"></div>
+          <div class="hub"></div>
+        </div>
+      </section>
+    </div>
+
+    <p class="muted" style="margin-top:10px">Sugerencia: rellena «BPM B», luego pulsa «Completar ronda» para pasarlo al Deck A y recibir una nueva técnica. «Pasar al siguiente tema» solo cambia la técnica mostrada (no suma progreso).</p>
+  </div>
+
+  <script>
+    // ==========================
+    // Datos base
+    // ==========================
+    const MAX_TECHS = 30; // meta
+    const techniques = {
+      "Transición": [
+        "Echo Out → siguiente canción con reverb + filtro.",
+        "Echo Out → delay sincronizado al tempo de la canción saliente.",
+        "Break con reverb → bajar tempo de forma radical y dejar reverb.",
+        "Outro → Intro.",
+        "Gran salto de tempo → usar loops para sincronizar y subir poco a poco al tempo del tema entrante."
+      ],
+      "Mezcla": [
+        "Double Drop con low cut en uno de los temas.",
+        "Mezcla en breakdown con low cut en uno.",
+        "Drop Swap.",
+        "Loop en la canción saliente + entrada de nuevo tema → intercambio de graves en el momento clave.",
+        "Tres canciones a la vez → usar loops + ecualización para repartir el espectro."
+      ]
+    };
+
+    // Helpers y referencias
+    const el = (id) => document.getElementById(id);
+    const bpmA = el('bpmA');
+    const bpmB = el('bpmB');
+    const roundEl = el('round');
+    const progEl = el('prog');
+    const deltaReadout = el('deltaReadout');
+    const xfKnob = el('xfKnob');
+    const vuBars = el('vuBars');
+    const techBadge = el('techBadge');
+    const techMain = el('techMain');
+    const techSub = el('techSub');
+    const undoBtn = el('undoBtn');
+    const resetBtn = el('resetBtn');
+    const commitBtn = el('commitBtn');
+    const nextBtn = el('nextBtn');
+
+    // Construir barras del VU
+    for(let i=0;i<12;i++){
+      const b=document.createElement('div');
+      b.className='bar';
+      b.style.height = (20 + i*2) + '%';
+      vuBars.appendChild(b);
+    }
+
+    // Estado + historial (para deshacer)
+    let state = {
+      round: 1,
+      deckA: { bpm: '' },
+      deckB: { bpm: '' },
+      technique: { category: '', text: '' },
+      techDone: 0
+    };
+    const historyStack = [];
+
+    function pushHistory(){
+      historyStack.push(JSON.parse(JSON.stringify(state)));
+      if(historyStack.length > 50) historyStack.shift();
+    }
+
+    function randomTechnique(){
+      const cats = Object.keys(techniques);
+      const cat = cats[Math.floor(Math.random()*cats.length)];
+      const list = techniques[cat];
+      const text = list[Math.floor(Math.random()*list.length)];
+      return { category: cat, text };
+    }
+
+    function clamp(n,min,max){ return Math.min(max, Math.max(min,n)); }
+    function parseBPM(v){
+      if(v===undefined || v===null || v==='') return NaN;
+      const n = parseFloat(String(v).replace(',','.'));
+      return isFinite(n) ? n : NaN;
+    }
+
+    function setCrossfaderByProgress(){
+      const pct = (state.techDone / MAX_TECHS) * 100; // 0..100
+      xfKnob.style.setProperty('--pos', clamp(pct, 0, 100));
+    }
+
+    function updateUI(){
+      // Pintar valores
+      bpmA.value = state.deckA.bpm !== '' ? state.deckA.bpm : '';
+      bpmB.value = state.deckB.bpm !== '' ? state.deckB.bpm : '';
+      roundEl.textContent = state.round;
+      progEl.textContent = Math.min(state.techDone, MAX_TECHS);
+
+      // Técnica centrada y grande
+      if(state.technique.text){
+        techMain.textContent = state.technique.text;
+        techBadge.textContent = state.technique.category;
+        techBadge.className = 'badge ' + (state.technique.category === 'Transición' ? 'trans' : 'mix');
+        techSub.textContent = 'Categoría: ' + state.technique.category;
+      } else {
+        techMain.textContent = 'Pulsa «Reiniciar sesión» o completa una ronda para obtener una técnica.';
+        techBadge.textContent = '—';
+        techBadge.className = 'badge';
+        techSub.textContent = 'La categoría se mostrará aquí.';
+      }
+
+      // ΔBPM (solo lectura informativa)
+      const a = parseBPM(state.deckA.bpm);
+      const b = parseBPM(state.deckB.bpm);
+      let delta = NaN;
+      if(!isNaN(a) && !isNaN(b)) delta = Math.abs(a - b);
+      deltaReadout.textContent = 'ΔBPM: ' + (isNaN(delta) ? '—' : delta.toFixed(2));
+
+      // Crossfader guiado por progreso
+      setCrossfaderByProgress();
+
+      // Bloquear avance si se llegó a la meta
+      commitBtn.disabled = state.techDone >= MAX_TECHS;
+      nextBtn.disabled = false; // puede cambiar técnica sin sumar
+    }
+
+    function nextTechniqueOnly(){
+      state.technique = randomTechnique();
+      updateUI();
+    }
+
+    function commitRound(){
+      if(state.techDone >= MAX_TECHS){
+        alert('Meta alcanzada: 30 técnicas realizadas.');
+        return;
+      }
+      // Validación mínima para B
+      const bVal = parseBPM(state.deckB.bpm);
+      if(isNaN(bVal)){
+        alert('Introduce un BPM válido en el Deck B.');
+        return;
+      }
+      pushHistory();
+      // Pasar B -> A
+      state.deckA.bpm = state.deckB.bpm;
+      state.deckB.bpm = '';
+      state.round += 1;
+
+      // Sumar progreso y nueva técnica
+      state.techDone = clamp(state.techDone + 1, 0, MAX_TECHS);
+      state.technique = randomTechnique();
+      updateUI();
+
+      if(state.techDone >= MAX_TECHS){
+        // Mensaje final opcional
+        techSub.textContent = '¡Objetivo completado! 30 técnicas realizadas.';
+      }
+    }
+
+    function undo(){
+      const prev = historyStack.pop();
+      if(!prev){
+        alert('No hay acciones para deshacer.');
+        return;
+      }
+      state = prev;
+      updateUI();
+    }
+
+    function resetAll(){
+      pushHistory();
+      state = { round:1, deckA:{ bpm:'' }, deckB:{ bpm:'' }, technique: randomTechnique(), techDone: 0 };
+      updateUI();
+    }
+
+    // Animación del VU
+    function startVU(){
+      const bars = Array.from(vuBars.children);
+      let t = 0;
+      setInterval(()=>{
+        const a = parseBPM(state.deckA.bpm);
+        const b = parseBPM(state.deckB.bpm);
+        const delta = (!isNaN(a) && !isNaN(b)) ? Math.abs(a-b) : 6; // base
+        const base = clamp(20 + delta*6, 20, 95); // 20–95%
+        bars.forEach((bar, i)=>{
+          const jitter = Math.sin((t + i)*0.35) * 6 + (Math.random()*6 - 3);
+          const h = clamp(base + jitter - Math.abs(i-6)*2, 8, 98);
+          bar.style.height = h + '%';
+        });
+        t += 1;
+      }, 160);
+    }
+
+    // Listeners
+    bpmB.addEventListener('input', ()=>{ state.deckB.bpm = bpmB.value; updateUI(); });
+    commitBtn.addEventListener('click', commitRound);
+    undoBtn.addEventListener('click', undo);
+    resetBtn.addEventListener('click', resetAll);
+    nextBtn.addEventListener('click', nextTechniqueOnly);
+
+    // Init
+    resetAll();
+    startVU();
+    updateUI();
+  </script>
+</body>
+</html>
